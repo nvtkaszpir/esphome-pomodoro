@@ -1,0 +1,364 @@
+# pomodoro
+---
+substitutions:
+  device_name: esphome-web-2c1238
+  domain: !secret DOMAIN
+
+esphome:
+  name: esphome-web-2c1238
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+# Enable logging
+logger:
+  logs:
+    component: ERROR
+
+# generic services
+time:
+  - platform: sntp
+    timezone: "Europe/UTC"
+    id: sntp_time
+    servers:
+      - 0.pool.ntp.org
+      - 1.pool.ntp.org
+      - 2.pool.ntp.org
+    # on_time_sync:
+    #   then:
+    #     - rtttl.play: 'two_short:d=4,o=5,b=100:16e6,16e6'
+
+# eats HUGE amount of memory
+# web_server:
+#   port: 80
+
+# Enable Home Assistant API, uncomment to enable (but if it fails to connect it will auto-restart)
+# api:
+#   password: ""
+
+  # register rttl audio buzzer in HomeAssistant
+  # services:
+  #   - service: play_rtttl
+  #     variables:
+  #       song_str: string
+  #     then:
+  #       - rtttl.play:
+  #           rtttl: !lambda 'return song_str;'
+
+ota:
+  password: "Aivieb6heiyea2ah"
+
+wifi:
+  ssid: !secret WIFI_SSID
+  password: !secret WIFI_PASSWORD
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "${device_name}"
+    password: !secret WIFI_AP_PASSWORD
+
+captive_portal:
+# web ui info
+text_sensor:
+  - platform: version
+    name: "ESPHome Version"
+
+  - platform: wifi_info
+    ip_address:
+      name: "IP Address ${device_name}"
+    ssid:
+      name: "Connected SSID ${device_name}"
+    bssid:
+      name: "Connected BSSID ${device_name}"
+    mac_address:
+      name: "Mac Wifi Address ${device_name}"
+
+# modules
+sensor:
+  - platform: uptime
+    id: socket_uptime
+    name: "Uptime ${device_name}"
+    icon: mdi:clock-outline
+    update_interval: 60s
+
+  - platform: wifi_signal
+    id: socket_wifi_signal
+    name: "WiFi Signal ${device_name}"
+    update_interval: 30s
+
+  # uncomment to get temperature and humudity from Home Assistant
+  # - platform: homeassistant
+  #   id: current_temperature
+  #   entity_id: sensor.esp32_devkit_v4_b25938_temperature
+
+
+  # - platform: homeassistant
+  #   id: current_humidity
+  #   entity_id: sensor.esp32_devkit_v4_b25938_humidity
+
+binary_sensor:
+  # button from pin to ground, triggers pomodoro start
+  - platform: gpio
+    pin:
+      number: GPIO33
+      inverted: true
+      mode:
+        input: true
+        pullup: true
+    name: button_black
+    filters:
+      - delayed_on: 10ms
+    on_press:
+      then:
+        - script.execute: pomodoro
+
+# Uses the red LED as a ESPhome status indicator
+status_led:
+  pin:
+    number: GPIO2
+    inverted: true
+
+# i2c to talk to OLED display
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+
+font:
+  # gfonts://family[@weight]
+  - file: "gfonts://Roboto"
+    id: roboto
+    # http://commondatastorage.googleapis.com/androiddevelopers/design/Roboto_Specimen_Book_20131031.pdf
+    glyphs: '!"%()*+,-_.:?{|}°0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz/&ĄĆĘŁŃÓŚŻŹąćęłńóśżź'
+    size: 24
+    # 16 fits %Y-%m-%d %H:%M
+
+  # gfonts://family[@weight]
+  - file: "gfonts://Roboto"
+    id: roboto_18
+    # http://commondatastorage.googleapis.com/androiddevelopers/design/Roboto_Specimen_Book_20131031.pdf
+    glyphs: '!"%()*+,-_.:?{|}°0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz/&ĄĆĘŁŃÓŚŻŹąćęłńóśżź'
+    size: 18
+    # 16 fits %Y-%m-%d %H:%M
+
+display:
+  - platform: ssd1306_i2c
+    model: "SSD1306 128x64"
+    id: my_display
+    update_interval: 500ms # how frequently change the screens
+    contrast: 0%
+    pages:
+      # show time and pomodoro phases + number of pomodoro counts
+      - id: page1
+        lambda: |-
+          auto time = id(sntp_time).now();
+          if (time.is_valid()) {
+            static int i = 0;
+            i = !i;
+            if(i)
+              it.strftime(0, 0, id(roboto), "%H:%M", id(sntp_time).now());
+            else
+              it.strftime(0, 0, id(roboto), "%H %M", id(sntp_time).now());
+          } else {
+            it.printf(0, 0, id(roboto), "Initializing");
+          }
+
+          auto msg_format = "Idle";
+          switch(id(pomodoro_active_state)){
+            case 2: msg_format = "%d Break %2.0fm"; break;
+            case 1: msg_format = "%d Work %2.0fm"; break;
+            case 0: msg_format = "%d Idle"; break;
+          }
+
+          it.printf(0, 32, id(roboto_18), msg_format, id(pomodoro_work_counter), id(pomodoro_seconds)/60.0);
+
+      # show temperature and humidity, change to whatever you like
+      - id: page2
+        lambda: |-
+          if (id(current_temperature).has_state()){
+            it.printf(0, 0, id(roboto), "%.1f°C", id(current_temperature).state);
+          } else {
+            it.printf(0, 0, id(roboto), "?");
+          }
+
+          if (id(current_humidity).has_state()){
+            it.printf(0, 32, id(roboto), "%.0f%%", id(current_humidity).state);
+          } else {
+            it.printf(0, 32, id(roboto), "?");
+          }
+
+# For example cycle through pages on a timer
+interval:
+  - interval: 5s
+    then:
+      - display.page.show_next: my_display
+      - component.update: my_display
+
+output:
+  - platform: ledc
+    pin: GPIO32
+    id: rtttl_out
+
+rtttl:
+  output: rtttl_out
+
+
+globals:
+  # 0 = not running
+  # 1 = work
+  # 2 = short break
+  # 3 = long break *after 3 consecutive short breaks
+  - id: pomodoro_active_state
+    type: int
+    restore_value: no
+    initial_value: '0'
+  # time per work phase
+  - id: pomodoro_seconds
+    type: int
+    restore_value: no
+    initial_value: '1500' # 1500s = 25min
+  # count number of work phases
+  - id: pomodoro_work_counter
+    type: int
+    restore_value: yes
+    initial_value: '0'
+
+# todo
+# short rest
+# long rest
+# phase counters
+# pause = blinking
+# - button 1 - start/pause
+# - button 2 - break (long press)
+
+script:
+  - id: buzz_parametrized
+    mode: queued
+    parameters:
+      freq_hz: int # example 1220
+      duration_ms: int # example 30
+    then:
+      # send short high buzz
+      - output.turn_on: rtttl_out
+      - output.ledc.set_frequency:
+          id: rtttl_out
+          frequency: !lambda return freq_hz;
+      - output.set_level:
+          id: rtttl_out
+          level: "80%" # 100% will causes not to work as expected
+      - delay: !lambda return duration_ms;
+      - output.turn_off: rtttl_out
+
+  - id: pomodoro
+    mode: restart
+    then:
+      - logger.log:
+          format: "Pomodoro started."
+          args: []
+      - script.execute:
+          id: buzz_parametrized
+          freq_hz: 1220
+          duration_ms: 25
+
+      # pomodoro phase: work
+      - logger.log:
+          format: "Pomodoro phase 'work' started"
+          args: []
+      - globals.set:
+          id: pomodoro_seconds
+          value: '1500'
+      - globals.set:
+          id: pomodoro_active_state
+          value: '1'
+
+      - while:
+          condition:
+            lambda: |-
+              return id(pomodoro_seconds) > 0;
+          then:
+          - delay: 1s
+          - lambda: |-
+                id(pomodoro_seconds) -= 1;
+                if (id(pomodoro_seconds) % 60 == 0) {
+                  ESP_LOGD("pomodoro", "phase: %d, seconds left: %d", id(pomodoro_active_state), id(pomodoro_seconds) );
+                }
+
+      # send low buzz
+      - script.execute:
+          id: buzz_parametrized
+          freq_hz: 610
+          duration_ms: 250
+
+      - logger.log:
+          format: "Pomodoro phase 'work' finished"
+          args: []
+
+      # pomodoro phase: short break
+      - logger.log:
+          format: "Pomodoro phase 'short break' started"
+          args: []
+      - globals.set:
+          id: pomodoro_active_state
+          value: '2'
+      - globals.set:
+          id: pomodoro_seconds
+          value: '300'
+
+      - while:
+          condition:
+            lambda: |-
+              return id(pomodoro_seconds) > 0;
+          then:
+          - delay: 1s
+          - lambda: |-
+                id(pomodoro_seconds) -= 1;
+                if (id(pomodoro_seconds) % 60 == 0) {
+                  ESP_LOGD("pomodoro", "phase: %d, seconds left: %d", id(pomodoro_active_state), id(pomodoro_seconds) );
+                }
+      - logger.log:
+          format: "Pomodoro phase 'short break' ended"
+          args: []
+
+      # send buzz melody, erm noise :)
+      - script.execute:
+          id: buzz_parametrized
+          freq_hz: 1220
+          duration_ms: 50
+      - script.execute:
+          id: buzz_parametrized
+          freq_hz: 610
+          duration_ms: 50
+      - script.execute:
+          id: buzz_parametrized
+          freq_hz: 1220
+          duration_ms: 50
+      - script.execute:
+          id: buzz_parametrized
+          freq_hz: 610
+          duration_ms: 50
+      - script.execute:
+          id: buzz_parametrized
+          freq_hz: 1220
+          duration_ms: 50
+      - script.execute:
+          id: buzz_parametrized
+          freq_hz: 610
+          duration_ms: 50
+
+      - globals.set:
+          id: pomodoro_active_state
+          value: '0'
+
+      - lambda: |-
+          id(pomodoro_work_counter) += 1;
+          ESP_LOGD("pomodoro", "work phases finished : %d", id(pomodoro_work_counter));
+          if ((id(pomodoro_work_counter) % 3) == 0) {
+            // time for longer break after 3 work phases
+            // do something
+          }
+
+
+      - logger.log:
+          format: "Pomodoro finished."
+          args: []
