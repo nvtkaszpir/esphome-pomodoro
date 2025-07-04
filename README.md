@@ -16,7 +16,7 @@ with OLED display, button and a buzzer.
 
 ## Known limitations
 
-- tested with esphome 2023.12.9 `ghcr.io/esphome/esphome:2023.12.9`
+- tested with esphome 2025.6.2 `ghcr.io/esphome/esphome:2025.6.2`
 - no button to reset number of pomodoro sessions stored.
 - tested with OLED 128x64
 - device power loss does not resume phase, given phase state is lost
@@ -48,3 +48,11 @@ First of all check [pinout fo your device](https://letmegooglethat.com/?q=esp32+
 - add that yaml to your ESPHome dashboard
 - upload to the device
 - enjoy.
+
+## Customizing
+
+- copy esp.yaml.dist to a new file my-device.yaml
+- edit my-device.yaml just as normal esphome device config
+- install [uv](https://docs.astral.sh/uv/getting-started/installation/)
+- `make dep`
+- `make run DEV=my-device.yaml`

@@ -1,12 +1,5 @@
 # pomodoro
 ---
-substitutions:
-  device_name: esphome-web-2c1238
-  domain: !secret DOMAIN
-
-esphome:
-  name: esphome-web-2c1238
-
 esp32:
   board: esp32dev
   framework:
@@ -31,8 +24,8 @@ time:
     #     - rtttl.play: 'two_short:d=4,o=5,b=100:16e6,16e6'
 
 # eats HUGE amount of memory
-# web_server:
-#   port: 80
+web_server:
+  port: 80
 
 # Enable Home Assistant API, uncomment to enable (but if it fails to connect it will auto-restart)
 # api:
@@ -48,7 +41,8 @@ time:
   #           rtttl: !lambda 'return song_str;'
 
 ota:
-  password: "Aivieb6heiyea2ah"
+  - platform: esphome
+    password: ""
 
 wifi:
   ssid: !secret WIFI_SSID
@@ -74,6 +68,12 @@ text_sensor:
       name: "Connected BSSID ${device_name}"
     mac_address:
       name: "Mac Wifi Address ${device_name}"
+
+  - platform: template
+    id: git_version
+    name: "App Version"
+    lambda: !include .git_version
+    update_interval: 60s
 
 # modules
 sensor:
@@ -187,6 +187,11 @@ display:
           } else {
             it.printf(0, 32, id(roboto), "?");
           }
+      # shows build info
+      # - id: page3
+      #   lambda: |-
+      #       it.printf(0, 0, id(roboto), "Version");
+      #       it.printf(0, 32, id(roboto), "%s", id(git_version).state.c_str());
 
 # For example cycle through pages on a timer
 interval:

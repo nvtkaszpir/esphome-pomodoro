@@ -1,0 +1,31 @@
+# pomodoro
+substitutions:
+  device_name: esphome-web-2c1238
+  domain: !secret DOMAIN
+
+<<: !include pomodoro.yaml
+
+esphome:
+  name: esphome-web-2c1238
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+# Enable logging
+logger:
+  logs:
+    component: ERROR
+
+# generic services
+time:
+  - platform: sntp
+    timezone: "Europe/Warsaw"
+    id: sntp_time
+    servers:
+
+      - pl.pool.ntp.org
+    # on_time_sync:
+    #   then:
+    #     - rtttl.play: 'two_short:d=4,o=5,b=100:16e6,16e6'
