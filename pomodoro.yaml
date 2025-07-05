@@ -69,11 +69,25 @@ text_sensor:
     mac_address:
       name: "Mac Wifi Address ${device_name}"
 
+  # optional, you can comment it out, needed to show app version build in web
+  # or on the display when starting on hard reset
   - platform: template
     id: git_version
     name: "App Version"
     lambda: !include .git_version
     update_interval: 60s
+
+  - platform: template
+    name: "Pomodoro current phase"
+    lambda: 'return to_string(id(pomodoro_active_state));'
+
+  - platform: template
+    name: "Pomodoro current phase seconds left"
+    lambda: 'return to_string(id(pomodoro_seconds));'
+
+  - platform: template
+    name: "Pomodoros total"
+    lambda: 'return to_string(id(pomodoro_work_counter));'
 
 # modules
 sensor:
@@ -114,6 +128,16 @@ binary_sensor:
       then:
         - script.execute: pomodoro
 
+button:
+  - platform: template
+    name: "Pomodoro reset counter"
+    on_press:
+      - logger.log: "Button pressed: Pomodoro reset counter"
+      - globals.set:
+          id: pomodoro_work_counter
+          value: '0'
+
+
 # Uses the red LED as a ESPhome status indicator
 status_led:
   pin:
@@ -128,7 +152,7 @@ i2c:
 font:
   # gfonts://family[@weight]
   - file: "gfonts://Roboto"
-    id: roboto
+    id: roboto_24
     # http://commondatastorage.googleapis.com/androiddevelopers/design/Roboto_Specimen_Book_20131031.pdf
     glyphs: '!"%()*+,-_.:?{|}°0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz/&ĄĆĘŁŃÓŚŻŹąćęłńóśżź'
     size: 24
@@ -146,10 +170,12 @@ display:
   - platform: ssd1306_i2c
     model: "SSD1306 128x64"
     id: my_display
-    update_interval: 500ms # how frequently change the screens
+    # how frequently refresh the screen, affects blinking of the clock dots
+    update_interval: 500ms
     contrast: 0%
     pages:
       # show time and pomodoro phases + number of pomodoro counts
+      # blinking colon in the clock
       - id: page1
         lambda: |-
           auto time = id(sntp_time).now();
@@ -157,11 +183,11 @@ display:
             static int i = 0;
             i = !i;
             if(i)
-              it.strftime(0, 0, id(roboto), "%H:%M", id(sntp_time).now());
+              it.strftime(0, 0, id(roboto_24), "%H:%M", id(sntp_time).now());
             else
-              it.strftime(0, 0, id(roboto), "%H %M", id(sntp_time).now());
+              it.strftime(0, 0, id(roboto_24), "%H %M", id(sntp_time).now());
           } else {
-            it.printf(0, 0, id(roboto), "Initializing");
+            it.printf(0, 0, id(roboto_24), "Initializing");
           }
 
           auto msg_format = "Idle";
@@ -174,26 +200,28 @@ display:
           it.printf(0, 32, id(roboto_18), msg_format, id(pomodoro_work_counter), id(pomodoro_seconds)/60.0);
 
       # show temperature and humidity, change to whatever you like
+      # Assuming temperature in Celsius
       - id: page2
         lambda: |-
           if (id(current_temperature).has_state()){
-            it.printf(0, 0, id(roboto), "%.1f°C", id(current_temperature).state);
+            it.printf(0, 0, id(roboto_24), "%.1f°C", id(current_temperature).state);
           } else {
-            it.printf(0, 0, id(roboto), "?");
+            it.printf(0, 0, id(roboto_24), "?");
           }
 
           if (id(current_humidity).has_state()){
-            it.printf(0, 32, id(roboto), "%.0f%%", id(current_humidity).state);
+            it.printf(0, 32, id(roboto_24), "%.0f%%", id(current_humidity).state);
           } else {
-            it.printf(0, 32, id(roboto), "?");
+            it.printf(0, 32, id(roboto_24), "?");
           }
+
       # shows build info
       # - id: page3
       #   lambda: |-
-      #       it.printf(0, 0, id(roboto), "Version");
-      #       it.printf(0, 32, id(roboto), "%s", id(git_version).state.c_str());
+      #       it.printf(0, 0, id(roboto_18), "Version");
+      #       it.printf(0, 32, id(roboto_18), "%s", id(git_version).state.c_str());
 
-# For example cycle through pages on a timer
+# cycle through pages on a timer
 interval:
   - interval: 5s
     then:
@@ -201,6 +229,7 @@ interval:
       - component.update: my_display
 
 output:
+  # buzzer
   - platform: ledc
     pin: GPIO32
     id: rtttl_out
@@ -228,14 +257,6 @@ globals:
     type: int
     restore_value: yes
     initial_value: '0'
-
-# todo
-# short rest
-# long rest
-# phase counters
-# pause = blinking
-# - button 1 - start/pause
-# - button 2 - break (long press)
 
 script:
   - id: buzz_parametrized
@@ -282,12 +303,12 @@ script:
             lambda: |-
               return id(pomodoro_seconds) > 0;
           then:
-          - delay: 1s
-          - lambda: |-
-                id(pomodoro_seconds) -= 1;
-                if (id(pomodoro_seconds) % 60 == 0) {
-                  ESP_LOGD("pomodoro", "phase: %d, seconds left: %d", id(pomodoro_active_state), id(pomodoro_seconds) );
-                }
+            - delay: 1s
+            - lambda: |-
+                  id(pomodoro_seconds) -= 1;
+                  if (id(pomodoro_seconds) % 60 == 0) {
+                    ESP_LOGD("pomodoro", "phase: %d, seconds left: %d", id(pomodoro_active_state), id(pomodoro_seconds) );
+                  }
 
       # send low buzz
       - script.execute:
@@ -315,12 +336,12 @@ script:
             lambda: |-
               return id(pomodoro_seconds) > 0;
           then:
-          - delay: 1s
-          - lambda: |-
-                id(pomodoro_seconds) -= 1;
-                if (id(pomodoro_seconds) % 60 == 0) {
-                  ESP_LOGD("pomodoro", "phase: %d, seconds left: %d", id(pomodoro_active_state), id(pomodoro_seconds) );
-                }
+            - delay: 1s
+            - lambda: |-
+                  id(pomodoro_seconds) -= 1;
+                  if (id(pomodoro_seconds) % 60 == 0) {
+                    ESP_LOGD("pomodoro", "phase: %d, seconds left: %d", id(pomodoro_active_state), id(pomodoro_seconds) );
+                  }
       - logger.log:
           format: "Pomodoro phase 'short break' ended"
           args: []

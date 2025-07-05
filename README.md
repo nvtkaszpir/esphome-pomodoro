@@ -13,14 +13,31 @@ with OLED display, button and a buzzer.
 - restores number of work phases on device power loss
 - can show some useless info like time and humidity and temperature if you have
   data from home-assistant, could be replaced with something else local
+- pomodoro reset counter via web only
 
 ## Known limitations
 
 - tested with esphome 2025.6.2 `ghcr.io/esphome/esphome:2025.6.2`
-- no button to reset number of pomodoro sessions stored.
-- tested with OLED 128x64
+
+- right now pomodoro cycle consists of two phases - work and break - after that
+  you need to manually push button to trigger the pomodoro cycle again.
+
+- no physical button to reset number of pomodoro sessions stored,
+  but this can be done via web ui
+
+- tested with OLED 128x64 only
 - device power loss does not resume phase, given phase state is lost
-- no reset/pause
+
+## Todo
+
+- short rest phase
+- long rest phase
+- phase counters
+- button 1 - start/pause
+- button 2 - break (long press)
+- if paused = blinking
+
+- flash screen instead of buzzer
 
 ## Bill of materials
 
@@ -32,7 +49,7 @@ with OLED display, button and a buzzer.
 
 ## Hardware installation
 
-First of all check [pinout fo your device](https://letmegooglethat.com/?q=esp32+pinout+image).
+Check [pinout fo your device](https://letmegooglethat.com/?q=esp32+pinout+image).
 
 - buzzer - GPIO32 + ground, check polarity, some require it
 - physical button - GPIO33 + ground - make sure you connect proper legs
@@ -50,7 +67,8 @@ Useful for testing another devices.
 - copy esp.yaml.dist to a new file my-device.yaml
 - edit my-device.yaml just as normal esphome device config
 - install [uv](https://docs.astral.sh/uv/getting-started/installation/)
-- `make dep`
+  and run `make dep` (or just see `dependencies` in pyproject.toml and install
+  them via pip)
 - `make run DEV=my-device.yaml`
 
 ### ESPHome Dashboard
