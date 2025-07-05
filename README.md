@@ -42,17 +42,22 @@ First of all check [pinout fo your device](https://letmegooglethat.com/?q=esp32+
 
 ## Software Installation
 
+### Compile locally
+
+Useful for testing another devices.
+
+- make sure to have secrets.yaml for substitutions like wifi name/password
+- copy esp.yaml.dist to a new file my-device.yaml
+- edit my-device.yaml just as normal esphome device config
+- install [uv](https://docs.astral.sh/uv/getting-started/installation/)
+- `make dep`
+- `make run DEV=my-device.yaml`
+
+### ESPHome Dashboard
+
 - look at the [pomodoro.yaml](./pomodoro.yaml) and
   edit it so it suits your needs - like device address, wifi passwords,
   or uncomment the code etc
 - add that yaml to your ESPHome dashboard
 - upload to the device
 - enjoy.
-
-## Customizing
-
-- copy esp.yaml.dist to a new file my-device.yaml
-- edit my-device.yaml just as normal esphome device config
-- install [uv](https://docs.astral.sh/uv/getting-started/installation/)
-- `make dep`
-- `make run DEV=my-device.yaml`
